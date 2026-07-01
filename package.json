@@ -1,8 +1,12 @@
 {
-  "name": "vue2-color-picker-gradient",
-  "version": "3.0.0",
+  "name": "guapikeji-color-picker",
+  "version": "1.0.3",
   "private": false,
-  "author": "爱华 <hstcssk@gmail.com>",
+  "author": "guapikeji <guapikeji@qq.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/themismin/guapikeji-color-picker.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -21,7 +25,6 @@
   },
   "keywords": [
     "color",
-    "vuejs",
     "vue2",
     "picker",
     "gradient",
@@ -29,9 +32,9 @@
     "多点",
     "颜色",
     "渐变选择器",
-    "gradientSelector"
+    "guapikeji"
   ],
-  "description": "vue2,颜色选择器,线性（纯色）、渐变选择器,支持角度、多点渐变",
+  "description": "Vue2 颜色选择器，支持纯色和渐变色，支持角度调节、多点渐变",
   "files": [
     "dist"
   ],
