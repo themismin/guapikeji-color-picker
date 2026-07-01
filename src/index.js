@@ -1,4 +1,4 @@
-import ColorPickerGradient from './components/vue2-color-picker.vue';
+import ColorPickerGradient from './components/guapikeji-color-picker.vue';
 
 /* istanbul ignore next */
 ColorPickerGradient.install = function (Vue) {

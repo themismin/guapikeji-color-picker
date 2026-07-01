@@ -1,8 +1,8 @@
-# vue2-color-picker-gradient
+# guapikeji-color-picker
 
-[![npm](https://img.shields.io/npm/v/vue2-color-picker-gradient.svg)](https://www.npmjs.com/package/vue2-color-picker-gradient)
-[![npm](https://img.shields.io/npm/dt/vue2-color-picker-gradient.svg)](https://www.npmjs.com/package/vue2-color-picker-gradient)
-[![GitHub stars](https://img.shields.io/github/stars/CNLHB/vue2-color-picker-gradient.svg?style=social&label=Stars&style=for-the-badge)](https://github.com/CNLHB/vue2-color-picker-gradient/stargazers)
+[![npm](https://img.shields.io/npm/v/guapikeji-color-picker.svg)](https://www.npmjs.com/package/guapikeji-color-picker)
+[![npm](https://img.shields.io/npm/dt/guapikeji-color-picker.svg)](https://www.npmjs.com/package/guapikeji-color-picker)
+[![GitHub stars](https://img.shields.io/github/stars/themismin/guapikeji-color-picker.svg?style=social&label=Stars&style=for-the-badge)](https://github.com/themismin/guapikeji-color-picker/stargazers)
 
 **Element-Plus 风格的 Vue 2 颜色选择器**，支持纯色和渐变色选择。
 
@@ -20,16 +20,16 @@
 - 💪 TypeScript 友好
 - 📱 响应式设计
 
-## [Live Demo](https://cnlhb.github.io/vue2-color-picker-gradient/)
+## [Live Demo](https://cnlhb.github.io/guapikeji-color-picker/)
 
 ## 📦 安装
 
 ### NPM
 
 ```bash
-npm install vue2-color-picker-gradient
+npm install guapikeji-color-picker
 # 或
-yarn add vue2-color-picker-gradient
+yarn add guapikeji-color-picker
 ```
 
 ## 🔨 使用
@@ -38,7 +38,7 @@ yarn add vue2-color-picker-gradient
 
 ```javascript
 import Vue from 'vue'
-import ColorPicker from 'vue2-color-picker-gradient'
+import ColorPicker from 'guapikeji-color-picker'
 
 Vue.use(ColorPicker)
 ```
@@ -46,7 +46,7 @@ Vue.use(ColorPicker)
 ### 局部注册
 
 ```javascript
-import ColorPicker from 'vue2-color-picker-gradient'
+import ColorPicker from 'guapikeji-color-picker'
 
 export default {
   components: {

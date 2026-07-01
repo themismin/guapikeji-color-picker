@@ -8,6 +8,9 @@ build
 .env.local
 .env.*.local
 
+# npm credentials (包含 token，不要提交)
+.npmrc
+
 # Log files
 npm-debug.log*
 yarn-debug.log*

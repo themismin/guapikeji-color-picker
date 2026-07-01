@@ -111,7 +111,7 @@
 </template>
 
 <script>
-import ColorPicker from './components/vue2-color-picker.vue';
+import ColorPicker from './components/guapikeji-color-picker.vue';
 
 export default {
   name: 'App',

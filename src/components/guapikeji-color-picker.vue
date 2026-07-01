@@ -41,8 +41,10 @@
           <div class="gcolor">
             <div v-if="!disableDeg" class="gcolor_deg">
               <div class="gcolor_deg_span">角度</div>
-              <Slider v-model="deg" :min="0" :max="360" :show-tooltip="false" />
-              <input v-model="deg" class="number_input" />
+              <div class="deg-slider-wrapper">
+                <input v-model.number="deg" type="range" class="deg-slider" min="0" max="360" />
+              </div>
+              <input v-model.number="deg" class="number_input" min="0" max="360" />
             </div>
 
             <div ref="refColorBar" class="gcolor_bar">
@@ -127,11 +129,7 @@ import {
   formatColor,
   detectColorType
 } from '../utils/index';
-import Slider from 'element-ui/lib/slider';
 import { Sketch } from 'vue-color';
-import 'element-ui/lib/theme-chalk/slider.css';
-const doc = document.body;
-let isSelectBoxMouseDown = false;
 
 /**
  * https://www.npmjs.com/package/color-scales
@@ -140,17 +138,21 @@ let isSelectBoxMouseDown = false;
 // '#f00', '#00ff00', '#00ff0055', 'rgb(201, 76, 76)', 'rgba(0,0,255,1)', 'hsl(89, 43%, 51%)', 'hsla(89, 43%, 51%, 0.6)'
 // ]"
 export default {
-  name: 'ColorPickerGradient',
+  name: 'GuapikejiColorPicker',
   components: {
-    SketchColorPicker: Sketch,
-    Slider
+    SketchColorPicker: Sketch
   },
   model: {
-    prop: 'modelValue',
-    event: 'update:modelValue'
+    prop: 'value',
+    event: 'input'
   },
   props: {
-    // v-model 绑定值
+    // v-model 绑定值（Vue 2 标准）
+    value: {
+      type: String,
+      default: ''
+    },
+    // v-model 绑定值（兼容 Vue 3 风格）
     // 线性模式：支持 hex/rgb/rgba/hsl/hsla 字符串，如 '#409EFF' 或 'rgba(64, 158, 255, 1)'
     // 渐变模式：CSS gradient 字符串，如 'linear-gradient(90deg, #fff 0%, #000 100%)'
     modelValue: {
@@ -207,8 +209,9 @@ export default {
     }
   },
   data() {
-    // 根据 modelValue 自动检测模式，如果有值则优先使用检测的模式
-    const detectedMode = this.modelValue ? detectColorType(this.modelValue) : null;
+    // 根据 value 或 modelValue 自动检测模式，如果有值则优先使用检测的模式
+    const initialValue = this.value || this.modelValue;
+    const detectedMode = initialValue ? detectColorType(initialValue) : null;
     return {
       // 当前模式（内部状态）
       currentMode: detectedMode || this.mode,
@@ -231,19 +234,29 @@ export default {
       pageX: 0,
       pageY: 0,
       // 控制面板显示/隐藏
-      showSelectColor: false
+      showSelectColor: false,
+      // 拖拽状态（实例级，避免多实例共享）
+      isSelectBoxMouseDown: false,
+      // 内部更新标记，防止 watch 循环
+      isInternalUpdating: false
     };
   },
   computed: {
+    // 当前绑定值（兼容 value 和 modelValue）
+    currentValue() {
+      return this.value || this.modelValue;
+    },
     // 渐变条背景样式
     barStyle() {
-      if (!this.colors) {
-        return '';
+      if (!this.colors || this.colors.length === 0) {
+        return 'linear-gradient(90deg, rgba(255, 255, 255, 1) 0%, rgba(0, 0, 0, 1) 100%)';
       }
       const colors = cloneDeep(this.colors)
         .sort((a, b) => a.pst - b.pst)
         .map((item) => {
-          return `${item.color} ${keepDecimal(String(item.pst) || '', 5)}%`;
+          const pst = item.pst != null ? item.pst : 0;
+          const color = item.color || 'rgba(0, 0, 0, 1)';
+          return `${color} ${keepDecimal(String(pst), 5)}%`;
         });
       return `linear-gradient(${this.deg}deg, ${colors.join(',')})`;
     },
@@ -265,28 +278,28 @@ export default {
     }
   },
   watch: {
+    // 监听 value 变化，解析并更新内部状态
+    value: {
+      handler(newValue) {
+        if (this.isInternalUpdating) return;
+        this.handleValueChange(newValue);
+      }
+    },
     // 监听 modelValue 变化，解析并更新内部状态
     modelValue: {
       handler(newValue) {
-        if (this.currentMode === 'linear') {
-          const colorObj = parseColor(newValue);
-          this.color = colorObj;
-        } else {
-          const { deg, colors } = parseGradient(newValue);
-          this.deg = deg;
-          this.colors = colors;
-          if (this.selectIndex >= colors.length) {
-            this.selectIndex = colors.length - 1;
-          }
+        if (this.isInternalUpdating) return;
+        if (newValue && newValue !== this.value) {
+          this.handleValueChange(newValue);
         }
-      },
-      immediate: true
+      }
     },
-    // 监听渐变样式变化
-    barStyle: {
-      handler(barStyle) {
+    // 监听渐变色点变化
+    colors: {
+      handler() {
+        if (this.isInternalUpdating) return;
         if (this.currentMode === 'linear') return;
-        this.emitUpdate(barStyle);
+        this.emitUpdate(this.barStyle);
       },
       deep: true
     },
@@ -301,50 +314,30 @@ export default {
         } else {
           this.deg = deg;
         }
+        if (this.isInternalUpdating) return;
+        if (this.currentMode === 'gradient') {
+          this.emitUpdate(this.barStyle);
+        }
       }
     }
   },
   created() {
-    // 初始化颜色值由 modelValue watcher 处理
-    // 如果是渐变模式且没有传入值，设置默认渐变
-    if (this.currentMode === 'gradient' && !this.modelValue) {
-      this.colors = [
-        {
-          color: 'rgba(255, 255, 255, 1)',
-          hex: '#ffffff',
-          rgba: { r: 255, g: 255, b: 255, a: 1 },
-          pst: 0
-        },
-        {
-          color: 'rgba(0, 0, 0, 1)',
-          hex: '#000000',
-          rgba: { r: 0, g: 0, b: 0, a: 1 },
-          pst: 100
-        }
-      ];
-    }
-  },
-  mounted() {
-    this.bindEvents();
-  },
-  unmounted() {
-    this.unbindEvents();
-    this.unbindEventsDoc();
-  },
-  methods: {
-    // 切换模式
-    switchMode(mode) {
-      if (this.currentMode === mode) return;
-      this.currentMode = mode;
-
-      // 切换模式时发送对应格式的初始值
-      if (mode === 'linear') {
-        const linearValue = formatColor(this.color.rgba, this.colorFormat);
-        this.emitUpdate(linearValue);
-        this.emitActiveChange(linearValue);
-      } else {
-        // 切换到渐变模式时，如果没有颜色点，设置默认值
-        if (this.colors.length === 0) {
+    // 初始化：如果有传入值，解析并设置内部状态
+    const initialValue = this.value || this.modelValue;
+    if (initialValue) {
+      this.isInternalUpdating = true;
+      try {
+        this.handleValueChange(initialValue);
+      } finally {
+        this.$nextTick(() => {
+          this.isInternalUpdating = false;
+        });
+      }
+    } else {
+      // 如果是渐变模式且没有传入值，设置默认渐变
+      if (this.currentMode === 'gradient') {
+        this.isInternalUpdating = true;
+        try {
           this.colors = [
             {
               color: 'rgba(255, 255, 255, 1)',
@@ -359,9 +352,136 @@ export default {
               pst: 100
             }
           ];
+        } finally {
+          this.$nextTick(() => {
+            this.isInternalUpdating = false;
+          });
         }
-        this.emitUpdate(this.barStyle);
-        this.emitActiveChange(this.barStyle);
+      }
+      // 如果是纯色模式且没有传入值，设置默认颜色
+      if (this.currentMode === 'linear') {
+        this.isInternalUpdating = true;
+        try {
+          const defaultColor = parseColor('#409EFF');
+          this.color = defaultColor;
+        } finally {
+          this.$nextTick(() => {
+            this.isInternalUpdating = false;
+          });
+        }
+      }
+    }
+  },
+  mounted() {
+    this.bindEvents();
+  },
+  beforeDestroy() {
+    this.unbindEvents();
+    this.unbindEventsDoc();
+  },
+  methods: {
+    // 处理值变化
+    handleValueChange(newValue) {
+      if (!newValue) return;
+      const colorType = detectColorType(newValue);
+      this.isInternalUpdating = true;
+      try {
+        if (colorType === 'gradient') {
+          this.currentMode = 'gradient';
+          const { deg, colors } = parseGradient(newValue);
+          this.deg = deg;
+          this.colors = colors;
+          if (this.selectIndex >= colors.length) {
+            this.selectIndex = colors.length - 1;
+          }
+        } else {
+          this.currentMode = 'linear';
+          const colorObj = parseColor(newValue);
+          this.color = colorObj;
+        }
+      } finally {
+        this.$nextTick(() => {
+          this.isInternalUpdating = false;
+        });
+      }
+    },
+    // 切换模式
+    switchMode(mode) {
+      if (this.currentMode === mode) return;
+
+      this.isInternalUpdating = true;
+
+      if (mode === 'linear') {
+        // 切换到纯色模式
+        // 如果有渐变色点，用第一个色点作为纯色值（继承用户已选颜色）
+        if (this.colors && this.colors.length > 0) {
+          const firstColor = this.colors[0];
+          if (firstColor.rgba) {
+            this.color = {
+              hex: firstColor.hex || '',
+              rgba: firstColor.rgba,
+              color: firstColor.color || ''
+            };
+          }
+        }
+        // 如果还是没有颜色值，设置默认颜色
+        if (!this.color.color) {
+          const defaultColor = parseColor('#409EFF');
+          this.color = defaultColor;
+        }
+        // 解绑渐变模式专属事件
+        if (this.showSelectColor) {
+          window.removeEventListener('keyup', this.handleKeyup);
+        }
+        this.currentMode = mode;
+        this.$nextTick(() => {
+          this.isInternalUpdating = false;
+          const linearValue = formatColor(this.color.rgba, this.colorFormat);
+          this.emitUpdate(linearValue);
+          this.emitActiveChange(linearValue);
+        });
+      } else {
+        // 切换到渐变模式
+        if (this.colors.length === 0) {
+          // 如果有当前纯色值，用它作为起始色（第二个色点用黑色兜底）
+          const startColor =
+            this.color && this.color.color
+              ? {
+                  color: this.color.color,
+                  hex: this.color.hex,
+                  rgba: this.color.rgba,
+                  pst: 0
+                }
+              : {
+                  color: 'rgba(255, 255, 255, 1)',
+                  hex: '#ffffff',
+                  rgba: { r: 255, g: 255, b: 255, a: 1 },
+                  pst: 0
+                };
+          this.colors = [
+            startColor,
+            {
+              color: 'rgba(0, 0, 0, 1)',
+              hex: '#000000',
+              rgba: { r: 0, g: 0, b: 0, a: 1 },
+              pst: 100
+            }
+          ];
+        }
+        // 确保 selectIndex 在有效范围内
+        if (this.selectIndex >= this.colors.length) {
+          this.selectIndex = this.colors.length - 1;
+        }
+        // 绑定渐变模式专属事件（仅在面板打开时）
+        if (this.showSelectColor) {
+          window.addEventListener('keyup', this.handleKeyup);
+        }
+        this.currentMode = mode;
+        this.$nextTick(() => {
+          this.isInternalUpdating = false;
+          this.emitUpdate(this.barStyle);
+          this.emitActiveChange(this.barStyle);
+        });
       }
 
       // 发送模式切换事件
@@ -369,8 +489,9 @@ export default {
     },
     // 发送 v-model 更新和事件
     emitUpdate(value) {
-      this.$emit('update:modelValue', value);
-      this.$emit('input', value); // 兼容 Vue 2.x v-model
+      this.$emit('input', value); // Vue 2 标准 v-model
+      this.$emit('update:value', value); // .sync 修饰符
+      this.$emit('update:modelValue', value); // Vue 3 风格 v-model
     },
     // 发送 change 事件（确认后触发）
     emitChange(value) {
@@ -384,19 +505,19 @@ export default {
       this.currentMode === 'gradient' && window.addEventListener('keyup', this.handleKeyup);
     },
     bindEventsDoc(useCapture = false) {
-      doc.addEventListener('mousemove', this.handleEleMouseMove, useCapture);
-      doc.addEventListener('mouseup', this.handleEleMouseUp, useCapture);
+      document.body.addEventListener('mousemove', this.handleEleMouseMove, useCapture);
+      document.body.addEventListener('mouseup', this.handleEleMouseUp, useCapture);
     },
     unbindEvents() {
       this.currentMode === 'gradient' && window.removeEventListener('keyup', this.handleKeyup);
       this.unbindEventsDoc();
     },
     unbindEventsDoc(useCapture = false) {
-      doc.removeEventListener('mousemove', this.handleEleMouseMove, useCapture);
-      doc.removeEventListener('mouseup', this.handleEleMouseUp, useCapture);
+      document.body.removeEventListener('mousemove', this.handleEleMouseMove, useCapture);
+      document.body.removeEventListener('mouseup', this.handleEleMouseUp, useCapture);
     },
     handleEleMouseMove(e) {
-      if (!isSelectBoxMouseDown) return;
+      if (!this.isSelectBoxMouseDown) return;
       this.movePst.x = e.pageX - this.mouseStartPst.x;
       this.movePst.y = e.pageY - this.mouseStartPst.y;
       this.pageX = e.pageX;
@@ -404,11 +525,11 @@ export default {
       this.sliderMove(e);
     },
     handleEleMouseUp(e) {
-      isSelectBoxMouseDown = false;
+      this.isSelectBoxMouseDown = false;
       this.sliderDone(e);
     },
     resetDraggle() {
-      isSelectBoxMouseDown = false;
+      this.isSelectBoxMouseDown = false;
       this.mouseStartPst = { x: 0, y: 0 };
       this.movePst.x = 0;
       this.movePst.y = 0;
@@ -425,7 +546,13 @@ export default {
     },
     handleClearColor() {
       const clearValue =
-        this.mode === 'linear' ? '' : 'linear-gradient(90deg, transparent 0%, transparent 100%)';
+        this.currentMode === 'linear'
+          ? ''
+          : 'linear-gradient(90deg, transparent 0%, transparent 100%)';
+      this.isInternalUpdating = true;
+      this.$nextTick(() => {
+        this.isInternalUpdating = false;
+      });
       this.emitUpdate(clearValue);
       this.emitChange(clearValue);
       this.handleClosePicker();
@@ -473,7 +600,7 @@ export default {
       this.bindEventsDoc();
       const e = $event;
       this.clickGColorPot(index);
-      isSelectBoxMouseDown = true;
+      this.isSelectBoxMouseDown = true;
       this.mouseStartPst.x = e.pageX;
       this.mouseStartPst.y = e.pageY;
       this.sliderStart(e);
@@ -511,6 +638,10 @@ export default {
         };
         // 实时更新 v-model
         const formattedColor = formatColor(rgba, this.colorFormat);
+        this.isInternalUpdating = true;
+        this.$nextTick(() => {
+          this.isInternalUpdating = false;
+        });
         this.emitUpdate(formattedColor);
         this.emitActiveChange(formattedColor);
       } else {
@@ -520,10 +651,18 @@ export default {
       }
     },
     handleGradientColorChange(color) {
+      if (!this.colors || this.colors.length === 0) return;
+      if (this.selectIndex < 0 || this.selectIndex >= this.colors.length) return;
       const rgba = color.rgba;
       this.colors[this.selectIndex].color = `rgba(${rgba.r}, ${rgba.g}, ${rgba.b}, ${rgba.a})`;
       this.colors[this.selectIndex].hex = color.hex;
       this.colors[this.selectIndex].rgba = color.rgba;
+      // 渐变模式下也更新 v-model
+      this.isInternalUpdating = true;
+      this.$nextTick(() => {
+        this.isInternalUpdating = false;
+      });
+      this.emitUpdate(this.barStyle);
     },
     clickGColorPot(index) {
       if (this.selectIndex === index) return;
@@ -624,76 +763,72 @@ export default {
     }
 
     .gcolor_deg {
-      display: block;
       display: flex;
       align-items: center;
       .gcolor_deg_span {
         font-size: 12px;
         margin-right: 10px;
+        flex-shrink: 0;
+      }
+      .deg-slider-wrapper {
+        flex: 1;
+        min-width: 0;
+        .deg-slider {
+          width: 100%;
+          height: 3px;
+          border-radius: 3px;
+          background: #dcdfe6;
+          outline: none;
+          -webkit-appearance: none;
+          appearance: none;
+          cursor: pointer;
+          &::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: #fff;
+            border: 1px solid #999;
+            box-shadow: 0 0 4px rgba(0, 0, 0, 0.4);
+            cursor: pointer;
+            transition: transform 0.15s;
+            &:hover {
+              transform: scale(1.1);
+            }
+          }
+          &::-moz-range-thumb {
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: #fff;
+            border: 1px solid #999;
+            box-shadow: 0 0 4px rgba(0, 0, 0, 0.4);
+            cursor: pointer;
+          }
+        }
       }
       .number_input {
-        min-width: 20px;
-        max-width: 20px;
+        min-width: 42px;
+        max-width: 48px;
         float: none;
         order: 1;
         margin-left: 10px;
-        margin-top: 0;
+        flex-shrink: 0;
         display: flex;
         align-items: center;
         text-align: center;
         color: #606266;
         font-size: 12px;
-        padding: 3px;
+        padding: 3px 6px;
+        height: 22px;
+        line-height: 22px;
         background-color: #fff;
         border: 1px solid #dcdfe6;
         border-radius: 4px;
         &:focus {
           border-color: #409eff;
           outline: 0;
-        }
-      }
-      :deep() {
-        .el-input-number__decrease,
-        .el-input-number__increase {
-          display: none;
-        }
-        .el-input--mini .el-input__inner {
-          padding: 0;
-          width: 100% !important;
-          height: 22px;
-          line-height: 22px;
-        }
-        .el-slider {
-          display: flex;
-          flex: 1;
-        }
-        .el-slider__input {
-          min-width: 2em;
-          max-width: 2em;
-          float: none;
-          order: 1;
-          margin-left: 10px;
-          margin-top: 0;
-          display: flex;
-          align-items: center;
-        }
-        .el-slider__runway.show-input {
-          margin-right: 0;
-          flex: 1;
-          order: 0;
-          height: 3px;
-        }
-        .el-slider__button {
-          width: 13px;
-          height: 13px;
-          border-color: #fff;
-          box-shadow: 0 0 4px rgba($color: #000, $alpha: 0.4);
-        }
-        .el-slider__bar {
-          height: 3px;
-        }
-        .el-slider__button-wrapper {
-          top: -17px;
         }
       }
     }

@@ -43,7 +43,7 @@ if (process.env.CUSTOM_NODE_ENV === 'demo') {
   plugins.push(legacy({}));
 }
 export default defineConfig({
-  base: '/vue2-color-picker-gradient',
+  base: '/guapikeji-color-picker',
   plugins: [...plugins],
   build: {
     ...libConfig.build

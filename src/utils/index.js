@@ -24,28 +24,53 @@ export function cloneDeep(target) {
  * @returns {Object} - { deg, colors }
  */
 export function parseGradient(gradient) {
+  const defaultResult = {
+    deg: 90,
+    colors: [
+      {
+        color: 'rgba(255, 255, 255, 1)',
+        hex: '#ffffff',
+        rgba: { r: 255, g: 255, b: 255, a: 1 },
+        pst: 0
+      },
+      {
+        color: 'rgba(0, 0, 0, 1)',
+        hex: '#000000',
+        rgba: { r: 0, g: 0, b: 0, a: 1 },
+        pst: 100
+      }
+    ]
+  };
+
   if (!gradient || typeof gradient !== 'string') {
-    return {
-      deg: 90,
-      colors: []
-    };
+    return defaultResult;
   }
 
-  const degMatch = gradient.match(/(\d+)deg/);
+  const degMatch = gradient.match(/(-?\d+)deg/);
   const deg = degMatch ? parseInt(degMatch[1]) : 90;
 
-  const colorStopsRegex = /(rgba?\([^)]+\)|#[0-9a-fA-F]{3,8})\s+(\d+(?:\.\d+)?)%/g;
+  const colorStopsRegex =
+    /(rgba?\([^)]+\)|#[0-9a-fA-F]{3,8}|hsl\([^)]+\)|hsla\([^)]+\))\s+(\d+(?:\.\d+)?)%/g;
   const colors = [];
   let match;
 
   while ((match = colorStopsRegex.exec(gradient)) !== null) {
     const colorStr = match[1];
     const position = parseFloat(match[2]);
-    const colorObj = parseColor(colorStr);
-    colors.push({
-      ...colorObj,
-      pst: position
-    });
+    try {
+      const colorObj = parseColor(colorStr);
+      colors.push({
+        ...colorObj,
+        pst: position
+      });
+    } catch (e) {
+      // 解析失败的色点跳过
+      console.warn('[color-picker] 解析渐变色点失败:', colorStr, e);
+    }
+  }
+
+  if (colors.length < 2) {
+    return defaultResult;
   }
 
   return { deg, colors };
@@ -210,8 +235,12 @@ export function formatColor(rgba, format = 'hex') {
   return `rgba(${validR}, ${validG}, ${validB}, ${validA})`;
 }
 export function keepDecimal(numStr, num = 2) {
-  const reg = new RegExp(`^\\d+(?:\\.\\d{0,${num}})?`, 'g');
-  return !numStr.match(reg) ? '' : numStr.match(reg);
+  if (!numStr || typeof numStr !== 'string') {
+    return '0';
+  }
+  const reg = new RegExp(`^\\d+(?:\\.\\d{0,${num}})?`);
+  const match = numStr.match(reg);
+  return match ? match[0] : '0';
 }
 
 /**
